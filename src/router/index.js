@@ -1,27 +1,56 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
-import Home from '../views/Home.vue'
 
 Vue.use(VueRouter)
 
 const routes = [
   {
     path: '/',
-    name: 'Home',
-    component: Home
+    name: 'All',
+    component: () => import('../views/AllFile.vue')
   },
   {
-    path: '/about',
-    name: 'About',
-    // route level code-splitting
-    // this generates a separate chunk (about.[hash].js) for this route
-    // which is lazy-loaded when the route is visited.
-    component: () => import(/* webpackChunkName: "about" */ '../views/About.vue')
+    path: '/image',
+    name: 'image',
+    component: () => import('../views/Image.vue')
+  },
+  {
+    path: '/video',
+    name: 'video',
+    component: () => import( '../views/video.vue')
+  },
+  {
+    path: '/music',
+    name: 'music',
+    // component: () => import( '../views/About.vue')
+  },
+  {
+    path: '/share',
+    name: 'share',
+    component: () => import( '../views/Share.vue')
+  },
+  {
+    path: '/recycler',
+    name: 'recycler',
+    component: () => import( '../views/Recycler.vue')
+  },
+  {
+    path: '/share_download/:id',
+    name: 'share_download',
+    component: () => import( '../views/ShareDownload.vue')
   }
 ]
 
 const router = new VueRouter({
-  routes
+  routes,
+  mode: 'history',
+  watch:{
+    $route(){
+      let that = this
+      console.log(that.$router.name)
+      this.active_name = that.$router.name
+    }
+  }
 })
 
 export default router
