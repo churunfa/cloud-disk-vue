@@ -25,8 +25,8 @@
               <el-button round @click="logoutAPI">退出</el-button>
             </div>
             <div v-else>
-              <el-button round @click="dialogStatus.login = true">登陆</el-button>
-              <el-button round @click="dialogStatus.register = true">注册</el-button>
+              <el-button round @click="loginClick">登陆</el-button>
+              <el-button round @click="registerClick">注册</el-button>
             </div>
           </el-col>
         </el-row>
@@ -166,6 +166,16 @@ export default {
     };
   },
   methods: {
+    loginClick(){
+      this.loginForm.username = ''
+      this.loginForm.password = ''
+      this.dialogStatus.login = true
+    },
+    registerClick(){
+      this.registerForm.username = ''
+      this.registerForm.password = ''
+      this.dialogStatus.register = true
+    },
     getMemory(memory){
       let v = memory / 1024 / 1024;
       if (v < 1024) return v.toFixed(1) + "M";

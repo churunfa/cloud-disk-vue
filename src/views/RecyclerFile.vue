@@ -69,14 +69,14 @@
           align="right"
           width="200">
         <template slot="header" slot-scope="scope">
-          <el-button type="success" round @click="recoveryPlus">
+          <el-button type="success" round @click="recoveryPlus" v-if="dir == '/'">
             恢复选中<i class="el-icon-refresh-right"></i>
           </el-button>
         </template>
         <template slot-scope="scope">
           <el-button
               type="success"
-              @click="handleRecovery(scope.$index, scope.row)" round>恢复<i class="el-icon-refresh-right"></i></el-button>
+              @click="handleRecovery(scope.$index, scope.row)" round  v-if="dir == '/'">恢复<i class="el-icon-refresh-right"></i></el-button>
         </template>
       </el-table-column>
 
@@ -224,6 +224,7 @@ export default {
         else {
           app.$message.success(dat.msg)
           app.getListAPI(app.$data.dir);
+          app.$emit("checkLoginAPI")
         }
       },function (){
         app.$message.error("服务器错误")
@@ -255,6 +256,7 @@ export default {
         else {
           app.$message.success(dat.msg)
           app.getListAPI(app.$data.dir)
+          app.$emit("checkLoginAPI")
         }
       }, function (){
         app.$message.error("服务器错误")

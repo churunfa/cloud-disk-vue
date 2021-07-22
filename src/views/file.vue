@@ -1,5 +1,78 @@
 <template>
   <div>
+    <div style="position: absolute; width: 550px;z-index: 2; bottom: 0px; right: 0;">
+      <el-collapse v-model="activeName" accordion v-if="chunkUploadList.length != 0">
+        <el-collapse-item :title="chunkUploadTitle" name="1">
+
+          <template>
+            <el-table
+                :data="chunkUploadList"
+                style="width: 100%">
+              <el-table-column
+                  prop="uf.file_name"
+                  label="文件名">
+              </el-table-column>
+              <el-table-column
+                  label="下载进度">
+                <template slot-scope="scope">
+                  {{ getMemory(scope.row.upload_chunk_size) }} / {{ getMemory(scope.row.tot_size) }}
+                </template>
+              </el-table-column>
+
+              <el-table-column
+                  label="选择文件">
+                <template slot-scope="scope">
+                  <el-upload
+                      v-if="fileMp.get(scope.row.uf.id) == null"
+                      class="upload-demo"
+                      action
+                      :data="scope"
+                      :http-request="getChunkFile"
+                      :show-file-list="false"
+                  >
+                    <el-button
+                        type="success"
+                        round
+                        size="medium"
+                    >
+                      <div>上传<i class="el-icon-upload"></i></div>
+                    </el-button>
+                  </el-upload>
+                  <div v-else>文件已选择</div>
+                </template>
+              </el-table-column>
+
+              <el-table-column
+                  prop="tot_size">
+                <template slot-scope="scope">
+                  <el-button
+                      size="mini"
+                      style="font-size: large"
+                      @click="downloadPause(scope.$index, scope.row)"
+                      v-if="isUploading.get(scope.row.uf.id)"
+                  >
+                    <i class="el-icon-video-pause"></i>
+                  </el-button>
+                  <el-button
+                      size="mini"
+                      style="font-size: large"
+                      @click="downloadContinue(scope.$index, scope.row)"
+                      v-else
+                  >
+                    <i class="el-icon-video-play" ></i>
+                  </el-button>
+                  <el-button
+                      size="mini"
+                      style="font-size: large"
+                      @click="downloadClose(scope.$index, scope.row)"><i class="el-icon-circle-close"></i>
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </template>
+        </el-collapse-item>
+      </el-collapse>
+    </div>
     <el-table
         ref="multipleTable"
         :data="fileData"
@@ -85,10 +158,8 @@
           <el-upload
               class="upload-demo"
               action
-              :http-request="uploadAPI"
               multiple
-              :on-success="upload_success"
-              :on-error="upload_error"
+              :http-request="startUpload"
               :show-file-list="false"
           >
             <el-button
@@ -137,6 +208,7 @@
         </template>
       </el-table-column>
     </el-table>
+
     <el-dialog
         title="创建文件夹"
         :visible.sync="newDirVisible"
@@ -233,6 +305,11 @@ export default {
       shareType: '',
       shareMsg: '',
       shareContent: '',
+      activeName: '',
+      chunkUploadList: [],
+      chunkUploadTitle: '',
+      fileMp: new Map,
+      isUploading: new Map,
     }
   },
 
@@ -244,6 +321,48 @@ export default {
     newDirHandle() {
       this.dirName = ''
       this.newDirVisible = true
+    },
+    downloadPause(index, row) {
+      let fid = row.uf.id
+      this.isUploading.set(fid, false)
+      this.isUploading = new Map(this.isUploading)
+    },
+    downloadContinue(index, row) {
+      let fid = row.uf.id
+      if (!this.fileMp.get(fid)) {
+        this.$message.warning("请选择文件后再进行操作")
+        return
+      }
+      this.chunkUpload(fid, this.fileMp.get(fid))
+    },
+    downloadClose(index, row) {
+      console.log(row)
+      let fid = row.uf.id
+      let app = this
+      this.$axios({
+        method: "post",
+        url: '/api/service-upload-download/chunk/cancel/' + fid,
+      }).then(res=>{
+        console.log(res)
+        if (res.data.code == 200) {
+          app.$message.success('取消成功')
+          app.getChunkUploadListAPI()
+          app.$emit("checkLoginAPI")
+        } else {
+          app.$message.error(res.data.message)
+        }
+      }, res=>{
+        app.$message.error(res.data.message)
+      })
+    },
+    open() {
+      this.$notify({
+        title: '自定义位置',
+        dangerouslyUseHTMLString: true,
+        message: '右下角弹出的消息',
+        position: 'bottom-right',
+        duration: 0
+      });
     },
     back(){
       let path = this.dir
@@ -432,6 +551,20 @@ export default {
     upload_error() {
       this.$message.error("上传失败")
     },
+    getChunkFile(param) {
+      let row = param.data.row
+      console.log(param.file)
+      console.log(row)
+
+      if (param.file.name != row.uf.file_name || param.file.size != row.uf.size) {
+        this.$message.error('您选择的文件不匹配，请重新选择')
+        return
+      }
+
+      // this.$set(this.fileMp, row.uf.id, param.file)
+      this.fileMp.set(row.uf.id, param.file)
+      this.fileMp = new Map(this.fileMp)
+    },
     uploadAPI(param) {
       const formData = new FormData();
       formData.append("file", param.file)
@@ -463,6 +596,9 @@ export default {
       })
     },
     getListAPI(path) {
+      let jwt_token = localStorage.getItem('jwt_token');
+
+      if (jwt_token == null) return
 
       let app = this;
       let data = this.$data
@@ -594,10 +730,136 @@ export default {
         app.$message.error("服务器错误")
       })
     },
+    getChunkUploadListAPI() {
+      let app = this
+
+      this.$axios({
+        method: "post",
+        url: '/api/service-upload-download/chunk/getUploading'
+      }).then(res=>{
+        let data = res.data
+        if (data.code == 200) {
+          app.chunkUploadList = data.data
+          app.chunkUploadTitle = data.data.length + '个文件正在上传'
+        }
+      })
+
+    },
     changeDir(index, row) {
       this.$data.dir = row.dir + row.file_name + '/'
       this.getListAPI(this.$data.dir)
-    }
+    },
+    startUpload(file) { //!!
+      let app = this
+      app.getFidAPI(file.file).then(res=>{
+        // console.log(res)
+        if (res.data.code == 200) {
+          // app.chunkUploadAPI(file.file, 0, res.data.data)
+          app.chunkUpload(res.data.data, file.file)
+        }
+      })
+    },
+    getFidAPI(file) {
+      let app = this
+      let path = this.dir
+      let fid;
+      return new Promise(function (resolve, reject){
+        app.$axios({
+          method: "post",
+          url: '/api/service-upload-download/chunk/getFid',
+          data: {
+            file_name: file.name,
+            size: file.size,
+            dir: path
+          }
+        }).then(res=>{
+          let data = res.data
+          if (data.code == 200) {
+            app.$message.success('提交成功')
+            app.fileMp.set(data.data, file)
+            app.getChunkUploadListAPI()
+            app.$emit("checkLoginAPI")
+            fid = data.data
+          } else {
+            app.$message.error(data.message)
+          }
+          resolve(res)
+        },res=>{
+          app.$message.error(res.data.message)
+          reject(res)
+        })
+      })
+
+    },
+    marge(id) {
+      let app = this
+      app.$axios({
+        url: '/api/service-upload-download/chunk/marge/' + id
+      }).then(res=>{})
+    },
+    async chunkUpload(fid, file) {
+      this.isUploading.set(fid, true)
+      let blockId;
+      let res = await this.getNextAPI(fid)
+      blockId = res.data.data
+
+      let tot_size = file.size
+      let block_size = 5 * 1024 * 1024
+      let count = Math.floor((tot_size + block_size - 1) / block_size)
+
+      for (let i = blockId; i < count; i++) {
+        if (!this.isUploading.get(fid)) break;
+        let res = await this.chunkUploadAPI(file, i, fid)
+      }
+
+    },
+    chunkUploadAPI(file, chunkNo, user_file_id) {
+      let app = this
+      let chunkSize = 5 * 1024 * 1024
+      let st = chunkNo * chunkSize
+      let ed = Math.min(file.size, st + chunkSize)
+
+      let f = file.slice(st, ed)
+      let fileRead = new FileReader()
+
+      return new Promise(resolve => {
+        fileRead.readAsArrayBuffer(f)
+        fileRead.onload = ev => {
+          const formData = new FormData();
+          let ff = new File([ev.target.result], file.name);
+          formData.append("file", ff)
+          formData.append("user_file_id", user_file_id)
+          formData.append("chunkNo", chunkNo)
+
+          app.$axios({
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            method: 'post',
+            url: '/api/service-upload-download/chunk/upload',
+            data: formData
+          }).then(function (response){
+            if (response.data.code == 200) {
+              app.marge(user_file_id)
+            }
+            resolve(response)
+          }, function (){
+            app.$message.error("服务器错误")
+          })
+
+        }
+      })
+    },
+    getNextAPI(id) {
+      let app = this
+      return new Promise(function (resolve){
+        app.$axios({
+          url: '/api/service-upload-download/chunk/next/' + id,
+        }).then(res=>{
+          resolve(res)
+        })
+      })
+    },
   },
   computed: {
     getMemory() {
@@ -609,8 +871,21 @@ export default {
       }
     },
   },
+  mounted() {
+    //定时器
+    let app = this
+    const timer = setInterval(() => {
+      app.getChunkUploadListAPI()
+      app.getListAPI(app.$data.dir)
+    }, 1000)
+    //销毁定时器
+    this.$once('hook:beforeDestroy', () => {
+      clearInterval(timer)
+    })
+  },
   created() {
-    this.getListAPI(this.$data.dir);
+    this.getListAPI(this.$data.dir)
+    this.getChunkUploadListAPI()
   }
 }
 </script>
@@ -629,10 +904,10 @@ export default {
 }
 
 .el-table__body tr:hover a {
-  background-color:rgb(255, 255, 255)
+  background-color:rgba(255, 255, 255, 0)
 }
 
 .el-table__body tr:hover a{
-  background-color:rgb(242, 242, 242)
+  background-color:rgba(242, 242, 242, 0)
 }
 </style>
