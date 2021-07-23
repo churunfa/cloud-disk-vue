@@ -80,7 +80,7 @@ export default {
       let app = this
       this.$axios({
         method: 'post',
-        url: '/api/service-upload-download/share/download/',
+        url: '/api/service-upload-download/chunk/share/download/',
         responseType: 'blob',
         data: {
           id: shareId,
@@ -92,7 +92,7 @@ export default {
         let blob = new Blob([content])
         let fileName = res.headers['content-disposition']
 
-        let pat = /filename="(.*?)"/
+        let pat = /filename=(.*?)$/
         let v = pat.exec(fileName)
 
         if (v == null) {

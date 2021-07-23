@@ -56,7 +56,7 @@
                   <el-button
                       size="mini"
                       style="font-size: large"
-                      @click="downloadContinue(scope.$index, scope.row)"
+                      @click="uploadContinue(scope.$index, scope.row)"
                       v-else
                   >
                     <i class="el-icon-video-play" ></i>
@@ -64,7 +64,7 @@
                   <el-button
                       size="mini"
                       style="font-size: large"
-                      @click="downloadClose(scope.$index, scope.row)"><i class="el-icon-circle-close"></i>
+                      @click="uploadClose(scope.$index, scope.row)"><i class="el-icon-circle-close"></i>
                   </el-button>
                 </template>
               </el-table-column>
@@ -310,6 +310,7 @@ export default {
       chunkUploadTitle: '',
       fileMp: new Map,
       isUploading: new Map,
+      uploadingCount: 0,
     }
   },
 
@@ -327,7 +328,7 @@ export default {
       this.isUploading.set(fid, false)
       this.isUploading = new Map(this.isUploading)
     },
-    downloadContinue(index, row) {
+    uploadContinue(index, row) {
       let fid = row.uf.id
       if (!this.fileMp.get(fid)) {
         this.$message.warning("请选择文件后再进行操作")
@@ -335,7 +336,7 @@ export default {
       }
       this.chunkUpload(fid, this.fileMp.get(fid))
     },
-    downloadClose(index, row) {
+    uploadClose(index, row) {
       console.log(row)
       let fid = row.uf.id
       let app = this
@@ -465,13 +466,14 @@ export default {
       let app = this
       this.$axios({
         method: 'post',
-        url: '/api/service-upload-download/download/' + row.id,
+        // url: '/api/service-upload-download/download/' + row.id,
+        url: '/api/service-upload-download/chunk/download/' + row.id,
         responseType: 'blob'
       }).then((res) => { // 处理返回的文件流
         let content = res.data
         let blob = new Blob([content])
         let fileName = res.headers['content-disposition']
-        let pat = /filename="(.*?)"/
+        let pat = /filename=(.*?)$/
         let v = pat.exec(fileName)
         fileName = v[1]
         fileName = decodeURIComponent(fileName)
@@ -517,14 +519,14 @@ export default {
       let app = this
       this.$axios({
         method: 'post',
-        url: '/api/service-upload-download/downloads/',
+        url: '/api/service-upload-download/chunk/downloads/',
         data: arr,
         responseType: 'blob'
       }).then((res) => { // 处理返回的文件流
         let content = res.data
         let blob = new Blob([content])
         let fileName = res.headers['content-disposition']
-        let pat = /filename="(.*?)"/
+        let pat = /filename=(.*?)$/
         let v = pat.exec(fileName)
         fileName = v[1]
         fileName = decodeURIComponent(fileName)
@@ -741,6 +743,10 @@ export default {
         if (data.code == 200) {
           app.chunkUploadList = data.data
           app.chunkUploadTitle = data.data.length + '个文件正在上传'
+
+          if (data.data.length != app.uploadingCount) app.getListAPI(app.$data.dir)
+
+          app.uploadingCount = data.data.length
         }
       })
 
@@ -876,7 +882,6 @@ export default {
     let app = this
     const timer = setInterval(() => {
       app.getChunkUploadListAPI()
-      app.getListAPI(app.$data.dir)
     }, 1000)
     //销毁定时器
     this.$once('hook:beforeDestroy', () => {
