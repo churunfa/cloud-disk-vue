@@ -76,8 +76,47 @@ export default {
       console.log(this.share.id)
       console.log(this.password)
       console.log(this.share.file_name)
-      let shareId = this.$route.params.id;
       let app = this
+
+      let shareId = this.$route.params.id;
+
+
+      document.cookie="token=" + localStorage.getItem('jwt_token');
+
+      let url = '/api/service-upload-download/chunk/share/check/' + shareId + '/' + app.share.file_name
+      let downloadUrl = '/api/service-upload-download/chunk/share/download/' + shareId + '/' + app.share.file_name
+
+      url = url + "?password=" + this.password
+      downloadUrl = downloadUrl + "?password=" + this.password
+
+      console.log(url)
+
+      this.$axios({
+        url: url
+      }).then(res=>{
+        let data = res.data
+        console.log(data)
+        if (data.code != 200) {
+          app.$message.error(data.message)
+          return
+        } else {
+          let elink = document.createElement('a')
+          elink.download = app.share.file_name
+
+          elink.style.display = 'none'
+          elink.href = downloadUrl
+          document.body.appendChild(elink)
+          elink.click()
+          URL.revokeObjectURL(elink.href) // 释放URL 对象
+          document.body.removeChild(elink)
+        }
+      },(res=>{
+        app.$message.error('服务器错误')
+        return
+      }))
+
+      return
+
       this.$axios({
         method: 'post',
         url: '/api/service-upload-download/chunk/share/download/',

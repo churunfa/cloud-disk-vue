@@ -48,7 +48,7 @@
                   <el-button
                       size="mini"
                       style="font-size: large"
-                      @click="downloadPause(scope.$index, scope.row)"
+                      @click="uploadPause(scope.$index, scope.row)"
                       v-if="isUploading.get(scope.row.uf.id)"
                   >
                     <i class="el-icon-video-pause"></i>
@@ -323,7 +323,7 @@ export default {
       this.dirName = ''
       this.newDirVisible = true
     },
-    downloadPause(index, row) {
+    uploadPause(index, row) {
       let fid = row.uf.id
       this.isUploading.set(fid, false)
       this.isUploading = new Map(this.isUploading)
@@ -463,6 +463,20 @@ export default {
       this.moveVisible = true
     },
     download(index, row) {
+      document.cookie="token=" + localStorage.getItem('jwt_token');
+
+      let elink = document.createElement('a')
+      elink.download = row.file_name
+
+      elink.style.display = 'none'
+      elink.href = '/api/service-upload-download/chunk/download/' + row.id
+      document.body.appendChild(elink)
+      elink.click()
+      URL.revokeObjectURL(elink.href) // 释放URL 对象
+      document.body.removeChild(elink)
+
+      return
+
       let app = this
       this.$axios({
         method: 'post',
@@ -470,6 +484,7 @@ export default {
         url: '/api/service-upload-download/chunk/download/' + row.id,
         responseType: 'blob'
       }).then((res) => { // 处理返回的文件流
+        return
         let content = res.data
         let blob = new Blob([content])
         let fileName = res.headers['content-disposition']
@@ -514,13 +529,29 @@ export default {
         arr.push(file.id)
       }
 
-      console.log(arr)
+      let filename = this.$root.$children[0].user.username + "的打包下载"
+
+      let url = '/api/service-upload-download/chunk/downloads?files=' + arr[0]
+
+      for (let i = 1; i < arr.length; i++) url = url + '&files=' + arr[i];
+
+      document.cookie="token=" + localStorage.getItem('jwt_token');
+
+      let elink = document.createElement('a')
+      elink.download = filename
+      elink.style.display = 'none'
+      elink.href = url
+      document.body.appendChild(elink)
+      elink.click()
+      URL.revokeObjectURL(elink.href) // 释放URL 对象
+      document.body.removeChild(elink)
+
+      return
 
       let app = this
       this.$axios({
         method: 'post',
-        url: '/api/service-upload-download/chunk/downloads/',
-        data: arr,
+        url: url,
         responseType: 'blob'
       }).then((res) => { // 处理返回的文件流
         let content = res.data
